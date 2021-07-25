@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { connect } from "mongoose";
+import authRoutes from "./authRoutes";
 
 dotenv.config();
 
@@ -19,7 +20,7 @@ app.use(helmet());
 
 // Connect to MongoDB
 connect(
-  `mongodb://${process.env.DB_USER}:${process.env.DB_PWD}@${process.env.DB_HOST}/raspistorage?authSource=admin`,
+  `mongodb://${process.env.DB_USER}:${process.env.DB_PWD}@${process.env.DB_HOST}/raspiauth?authSource=admin`,
   {
     useNewUrlParser: true,
     useUnifiedTopology: true,
@@ -40,3 +41,5 @@ app.get("/", (req, res) => {
     message: "The application is currently under active development!",
   });
 });
+
+app.use(authRoutes);
