@@ -9,6 +9,9 @@ dotenv.config();
 
 const app = express();
 
+// express json parser middleware
+app.use(express.json());
+
 // CORS library initialisation allowing all subdomains from https://toccatech.com and all localhost servers
 app.use(
   cors({
@@ -24,6 +27,8 @@ connect(
   {
     useNewUrlParser: true,
     useUnifiedTopology: true,
+    useCreateIndex: true,
+    useFindAndModify: false,
   }
 )
   .then(() => {
