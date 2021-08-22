@@ -6,7 +6,22 @@ import UserModel from "./models/User";
 
 const router = Router();
 
-router.post("/signup", async (req, res) => {
+const authBodySchema: ValidationSchema = {
+  email: {
+    type: "string",
+    required: true,
+    regExp: /^[a-z]+(\.[a-z]+)?@[a-z]+\.[a-z]+(\.[a-z]+)?$/,
+    errorMessage: "The field email is required and must be valid!",
+  },
+  password: {
+    type: "string",
+    required: true,
+    minLength: 6,
+    errorMessage: "The field password is required and must contain at least 6 characters!",
+  },
+};
+
+router.post("/signup", validateBody(authBodySchema), async (req, res) => {
   const { email, password } = req.body;
   const hashedPassword = await hash(password, 10);
   try {
@@ -17,16 +32,16 @@ router.post("/signup", async (req, res) => {
   }
 });
 
-router.post("/signin", async (req, res) => {
+router.post("/signin", validateBody(authBodySchema), async (req, res) => {
   const { email, password } = req.body;
   try {
     const user = await UserModel.findOne({ email });
     if (!user) {
-      res.status(404).send({ error: "User not found" });
+      res.status(404).send({ error: "The provided email does not correspond to a known user!" });
     } else {
       const validPassword = await compare(password, user.password);
       if (!validPassword) {
-        res.status(403).send({ error: "Invalid password" });
+        res.status(403).send({ error: "The password is invalid!" });
       } else {
         const jwt = sign(user.id, process.env.APP_SECRET!);
         res
@@ -43,19 +58,19 @@ router.post("/signin", async (req, res) => {
 router.get("/current-user", async (req, res) => {
   const jwt = req.cookies.jwt;
   if (!jwt) {
-    res.status(401).send({ error: "You are not authenticated" });
+    res.status(401).send({ error: "You are not authenticated!" });
   } else {
     try {
       const userId = verify(req.cookies.jwt!, process.env.APP_SECRET!);
       const currentUser = await UserModel.findById(userId);
       if (!currentUser) {
-        res.status(400).send({ error: "User not found" });
+        res.status(400).send({ error: "The current user was not found!" });
       } else {
         // delete currentUser.password;
         res.send({ data: currentUser });
       }
     } catch (error) {
-      res.status(400).send({ error: "Wrong jwt" });
+      res.status(400).send({ error: "The JWT provided is not authentic!" });
     }
   }
 });
@@ -64,28 +79,55 @@ router.get("/logout", async (req, res) => {
   res.clearCookie("jwt").send({ msg: "You are now logged out!" });
 });
 
-router.post("/modify-user", async (req, res) => {
+const modifyUserBodySchema: ValidationSchema = {
+  ...authBodySchema,
+  email: {
+    ...authBodySchema.email,
+    required: false,
+  },
+  password: {
+    ...authBodySchema.password,
+    required: false,
+  },
+  oldPassword: {
+    type: "string",
+    required: true,
+    errorMessage: "The old password must be provided!",
+  },
+};
+
+router.post("/modify-user", validateBody(modifyUserBodySchema), async (req, res) => {
   const jwt = req.cookies.jwt;
   if (!jwt) {
-    res.status(401).send({ error: "You are not authenticated" });
+    res.status(401).send({ error: "You are not authenticated!" });
   } else {
     try {
       const userId = verify(req.cookies.jwt!, process.env.APP_SECRET!);
-      const currentUser = await UserModel.findById(userId);
+      let currentUser = await UserModel.findById(userId);
       if (!currentUser) {
         res.status(400).send({ error: "User not found" });
       } else {
         const validPassword = await compare(req.body.oldPassword, currentUser.password);
         if (!validPassword) {
-          res.status(403).send({ error: "Invalid password" });
+          res.status(403).send({ error: "The password is invalid!" });
         } else {
-          const hashedPassword = await hash(req.body.password, 10);
-          currentUser.updateOne({ ...req.body, password: hashedPassword });
+          let update = { ...req.body };
+          if (req.body.password) {
+            const hashedPassword = await hash(req.body.password, 10);
+            update.password = hashedPassword;
+          }
+          try {
+            await currentUser.updateOne(update);
+            currentUser = await UserModel.findById(userId);
+          } catch (error) {
+            res.status(500).send({ error });
+          }
           res.send({ data: currentUser });
         }
       }
     } catch (error) {
-      res.status(400).send({ error: "Wrong jwt" });
+      console.log(error);
+      res.status(400).send({ error: "The JWT provided is not authentic!" });
     }
   }
 });

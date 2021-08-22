@@ -4,6 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { connect } from "mongoose";
 import authRoutes from "./authRoutes";
+import cookieParser from "cookie-parser";
 
 dotenv.config();
 
@@ -11,6 +12,7 @@ const app = express();
 
 // express json parser middleware
 app.use(express.json());
+app.use(cookieParser());
 
 // CORS library initialisation allowing all subdomains from https://toccatech.com and all localhost servers
 app.use(
