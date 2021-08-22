@@ -16,6 +16,7 @@ app.use(express.json());
 app.use(
   cors({
     origin: [/^https:\/\/.*toccatech.com$/, /^(http|https):\/\/localhost:[0-9]{1,6}$/],
+    credentials: true,
   })
 );
 // Helmet initialisation with all the defaults

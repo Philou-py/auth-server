@@ -19,17 +19,21 @@
   },
   "homepage": "https://github.com/Philou-py/auth-server#readme",
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^10.0.0",
     "express": "^4.17.1",
     "helmet": "^4.6.0",
+    "jsonwebtoken": "^8.5.1",
     "mongoose": "^5.13.3",
     "nodemon": "^2.0.12",
     "validator": "^13.6.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.2",
     "@types/cors": "^2.8.12",
     "@types/express": "^4.17.13",
+    "@types/jsonwebtoken": "^8.5.4",
     "@types/mongoose": "^5.11.97",
     "@types/node": "^16.4.1",
     "@types/validator": "^13.6.3",
