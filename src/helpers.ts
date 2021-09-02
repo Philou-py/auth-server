@@ -30,6 +30,7 @@ export interface ValidationSchema {
     minLength?: number;
     maxLength?: number;
     regExp?: RegExp;
+    in?: any[];
     errorMessage: string;
   };
 }
@@ -59,6 +60,7 @@ export const validateBody = (validationSchema: ValidationSchema) => {
         if (rules.minLength && req.body[key].length < rules.minLength) fieldValid = false;
         if (rules.maxLength && req.body[key].length > rules.maxLength) fieldValid = false;
         if (rules.regExp && !rules.regExp.test(req.body[key])) fieldValid = false;
+        if (rules.in && !rules.in.includes(req.body[key])) fieldValid = false;
       }
 
       if (!fieldValid) {
