@@ -1,7 +1,8 @@
+import fs from "fs";
 import { Router } from "express";
 import { hash, compare } from "bcryptjs";
-import { sign, verify } from "jsonwebtoken";
-import { validateBody, ValidationSchema, handleErrors } from "./helpers";
+import { sign } from "jsonwebtoken";
+import { validateBody, ValidationSchema, handleErrors, verifyJWT } from "./helpers";
 import UserModel from "./models/User";
 
 const router = Router();
@@ -20,6 +21,9 @@ const authBodySchema: ValidationSchema = {
     errorMessage: "The field password is required and must contain at least 6 characters!",
   },
 };
+
+const privateKey = fs.readFileSync("./rsa_1024_priv.pem", "utf-8");
+const publicKey = fs.readFileSync("./rsa_1024_pub.pem", "utf-8");
 
 router.post("/signup", validateBody(authBodySchema), async (req, res) => {
   const { email, password } = req.body;
@@ -43,7 +47,24 @@ router.post("/signin", validateBody(authBodySchema), async (req, res) => {
       if (!validPassword) {
         res.status(403).send({ error: "The password is invalid!" });
       } else {
-        const jwt = sign(user.id, process.env.APP_SECRET!);
+        const jwt = sign(
+          {
+            "https://toccatech.com/jwt/claims": {
+              ROLE: "USER",
+              USER: user.id,
+              EMAIL: user.email,
+              isAuthenticated: true,
+            },
+          },
+          privateKey,
+          {
+            issuer: "Toccatech Corporation",
+            subject: "Toccatech Users",
+            audience: "https://toccatech.com",
+            expiresIn: 60 * 60 * 24 * 14, // Two weeks
+            algorithm: "RS256",
+          }
+        );
         res
           .cookie("jwt", jwt, { httpOnly: true })
           .status(200)
@@ -51,6 +72,7 @@ router.post("/signin", validateBody(authBodySchema), async (req, res) => {
       }
     }
   } catch (error) {
+    console.log(error);
     res.status(500).send({ error });
   }
 });
@@ -60,8 +82,9 @@ router.get("/current-user", async (req, res) => {
   if (!jwt) {
     res.status(401).send({ error: "You are not authenticated!" });
   } else {
-    try {
-      const userId = verify(req.cookies.jwt!, process.env.APP_SECRET!);
+    const payload = verifyJWT(req.cookies.jwt!, res);
+    if (payload) {
+      const userId = payload["https://toccatech.com/jwt/claims"].USER;
       const currentUser = await UserModel.findById(userId);
       if (!currentUser) {
         res.status(400).send({ error: "The current user was not found!" });
@@ -69,8 +92,6 @@ router.get("/current-user", async (req, res) => {
         // delete currentUser.password;
         res.send({ data: currentUser });
       }
-    } catch (error) {
-      res.status(400).send({ error: "The JWT provided is not authentic!" });
     }
   }
 });
@@ -101,15 +122,16 @@ router.post("/modify-user", validateBody(modifyUserBodySchema), async (req, res)
   if (!jwt) {
     res.status(401).send({ error: "You are not authenticated!" });
   } else {
-    try {
-      const userId = verify(req.cookies.jwt!, process.env.APP_SECRET!);
+    const payload = verifyJWT(req.cookies.jwt!, res);
+    if (payload) {
+      const userId = payload["https://toccatech.com/jwt/claims"].USER;
       let currentUser = await UserModel.findById(userId);
       if (!currentUser) {
         res.status(400).send({ error: "User not found" });
       } else {
         const validPassword = await compare(req.body.oldPassword, currentUser.password);
         if (!validPassword) {
-          res.status(403).send({ error: "The password is invalid!" });
+          res.status(403).send({ error: "The old password is invalid!" });
         } else {
           let update = { ...req.body };
           if (req.body.password) {
@@ -125,9 +147,6 @@ router.post("/modify-user", validateBody(modifyUserBodySchema), async (req, res)
           res.send({ data: currentUser });
         }
       }
-    } catch (error) {
-      console.log(error);
-      res.status(400).send({ error: "The JWT provided is not authentic!" });
     }
   }
 });

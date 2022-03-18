@@ -1,4 +1,8 @@
+import { readFileSync } from "fs";
 import { Request, Response, NextFunction } from "express";
+import { verify } from "jsonwebtoken";
+
+const publicKey = readFileSync("./rsa_1024_pub.pem", "utf-8");
 
 // Handle errors
 export const handleErrors = (err: any, res: Response) => {
@@ -74,3 +78,18 @@ export const validateBody = (validationSchema: ValidationSchema) => {
     } else next();
   };
 };
+
+export const verifyJWT = (jwt: string, res: Response) => {
+  try {
+    const result = verify(jwt, publicKey, {
+      issuer: "Toccatech Corporation",
+      audience: "https://toccatech.com",
+      algorithms: ["RS256"],
+    });
+    if (typeof result !== "string") return result;
+  } catch (error) {
+    res.status(403).send({ error: capitalise(error.message) });
+  }
+};
+
+export const capitalise = (str: string) => str[0].toUpperCase() + str.slice(1);
