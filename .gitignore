@@ -1,5 +1,6 @@
 node_modules
 /dist
+*.pem
 
 # local env files
 .env.local
