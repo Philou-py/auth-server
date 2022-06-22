@@ -1,31 +1,5 @@
-import { readFileSync } from "fs";
 import { Request, Response, NextFunction } from "express";
-import { verify } from "jsonwebtoken";
-
-const publicKey = readFileSync("./rsa_1024_pub.pem", "utf-8");
-
-// Handle errors
-export const handleErrors = (err: any, res: Response) => {
-  console.log("Message d'erreur :", err.message, "Code d'erreur :", err.code);
-  let errors: Record<string, string> = {};
-
-  // Duplicate error
-  if (err.code === 11000) {
-    errors.email = "That email is already registered";
-    res.status(400).send({ validationErrors: errors });
-    // Status codes explained on https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
-  } else {
-    // Validation errors
-    if (err.message.includes("validation failed")) {
-      Object.values(err.errors as object).forEach(({ properties }) => {
-        errors[properties.path] = properties.message;
-      });
-      res.status(400).send({ validationErrors: errors });
-    } else {
-      res.status(500).send({ error: err });
-    }
-  }
-};
+import { sign } from "jsonwebtoken";
 
 export interface ValidationSchema {
   [key: string]: {
@@ -74,22 +48,49 @@ export const validateBody = (validationSchema: ValidationSchema) => {
     }
 
     if (!isValid) {
-      res.send({ validationErrors: errors });
+      res.status(400).send({ validationErrors: errors });
     } else next();
   };
 };
 
-export const verifyJWT = (jwt: string, res: Response) => {
-  try {
-    const result = verify(jwt, publicKey, {
+export const capitalise = (str: string) => str[0].toUpperCase() + str.slice(1);
+
+export const generateAdminJwt = (privateKey: string) => {
+  return sign(
+    {
+      "https://toccatech.com/jwt/claims": {
+        ROLE: "ADMIN",
+      },
+    },
+    privateKey,
+    {
       issuer: "Toccatech Corporation",
+      subject: "Toccatech Users",
       audience: "https://toccatech.com",
-      algorithms: ["RS256"],
-    });
-    if (typeof result !== "string") return result;
-  } catch (error) {
-    res.status(403).send({ error: capitalise(error.message) });
-  }
+      expiresIn: 60, // One minute
+      algorithm: "RS256",
+    }
+  );
 };
 
-export const capitalise = (str: string) => str[0].toUpperCase() + str.slice(1);
+export const generateUserJwt = (privateKey: string, userId: string) => {
+  return sign(
+    {
+      "https://toccatech.com/jwt/claims": {
+        ROLE: "USER",
+        USER: userId,
+        isAuthenticated: "true",
+      },
+    },
+    privateKey,
+    {
+      issuer: "Toccatech Corporation",
+      subject: "Toccatech Users",
+      audience: "https://toccatech.com",
+      expiresIn: JWT_MAX_AGE,
+      algorithm: "RS256",
+    }
+  );
+};
+
+export const JWT_MAX_AGE = 60 * 60 * 24 * 28; // Four weeks in seconds
