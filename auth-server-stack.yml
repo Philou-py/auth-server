@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+  api:
+    image: philoupy/auth-server
+    ports:
+      - "3003:3003"
+    deploy:
+      mode: replicated
+      replicas: 3
+      placement:
+        max_replicas_per_node: 1
