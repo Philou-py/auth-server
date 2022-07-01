@@ -94,8 +94,13 @@ router.post("/signup", validateBody(signUpBodySchema), async (req, res) => {
     );
     const user = data.data.addUser.user[0];
     const userJwt = genUserJwt(user.id);
+    const host = req.get("Host");
+    const domainParts = host!.split(".");
+    const tld = domainParts.pop();
+    const sld = domainParts.pop();
+    const domain = [sld, tld].join(".");
     res
-      .cookie(AUTH_COOKIE, "Bearer " + userJwt, { maxAge: 1000 * JWT_MAX_AGE })
+      .cookie(AUTH_COOKIE, "Bearer " + userJwt, { maxAge: 1000 * JWT_MAX_AGE, domain })
       .status(201)
       .send({
         msg: `Votre compte a bien été créé ! Bienvenue, ${username}!`,
@@ -145,10 +150,13 @@ router.post("/signin", validateBody(signInBodySchema), async (req, res) => {
       res.status(403).send({ error: "Navré, mais votre mot de passe est incorrect !" });
     } else {
       const userJwt = genUserJwt(userAccount.id);
+      const host = req.get("Host");
+      const domainParts = host!.split(".");
+      const tld = domainParts.pop();
+      const sld = domainParts.pop();
+      const domain = [sld, tld].join(".");
       res
-        .cookie(AUTH_COOKIE, "Bearer " + userJwt, {
-          maxAge: 1000 * JWT_MAX_AGE,
-        })
+        .cookie(AUTH_COOKIE, "Bearer " + userJwt, { maxAge: 1000 * JWT_MAX_AGE, domain })
         .status(200)
         .send({
           msg: `Content de vous revoir, ${username}!`,
