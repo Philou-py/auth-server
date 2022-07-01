@@ -1,5 +1,12 @@
 import { Request, Response, NextFunction } from "express";
 import { sign } from "jsonwebtoken";
+import fs from "fs";
+
+const privateKey = fs.readFileSync("./rsa_1024_priv.pem", "utf-8");
+const JWT_ISS = process.env.JWT_ISS || "Toccatech Corporation";
+const JWT_SUB = process.env.JWT_SUB || "Toccatech Users";
+const JWT_AUD = process.env.JWT_AUD || "https://toccatech.com";
+const JWT_CLAIMS = process.env.JWT_CLAIMS || "https://toccatech.com/jwt/claims";
 
 export interface ValidationSchema {
   [key: string]: {
@@ -55,28 +62,28 @@ export const validateBody = (validationSchema: ValidationSchema) => {
 
 export const capitalise = (str: string) => str[0].toUpperCase() + str.slice(1);
 
-export const generateAdminJwt = (privateKey: string) => {
+export const genAdminJwt = () => {
   return sign(
     {
-      "https://toccatech.com/jwt/claims": {
+      [JWT_CLAIMS]: {
         ROLE: "ADMIN",
       },
     },
     privateKey,
     {
-      issuer: "Toccatech Corporation",
-      subject: "Toccatech Users",
-      audience: "https://toccatech.com",
+      issuer: JWT_ISS,
+      subject: JWT_SUB,
+      audience: JWT_AUD,
       expiresIn: 60, // One minute
       algorithm: "RS256",
     }
   );
 };
 
-export const generateUserJwt = (privateKey: string, userId: string) => {
+export const genUserJwt = (userId: string) => {
   return sign(
     {
-      "https://toccatech.com/jwt/claims": {
+      [JWT_CLAIMS]: {
         ROLE: "USER",
         USER: userId,
         isAuthenticated: "true",
@@ -84,9 +91,9 @@ export const generateUserJwt = (privateKey: string, userId: string) => {
     },
     privateKey,
     {
-      issuer: "Toccatech Corporation",
-      subject: "Toccatech Users",
-      audience: "https://toccatech.com",
+      issuer: JWT_ISS,
+      subject: JWT_SUB,
+      audience: JWT_AUD,
       expiresIn: JWT_MAX_AGE,
       algorithm: "RS256",
     }

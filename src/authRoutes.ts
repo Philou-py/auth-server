@@ -1,18 +1,12 @@
-import fs from "fs";
 import { Router } from "express";
 import { hash, compare } from "bcryptjs";
-import {
-  validateBody,
-  ValidationSchema,
-  generateAdminJwt,
-  generateUserJwt,
-  JWT_MAX_AGE,
-} from "./helpers";
+import { validateBody, ValidationSchema, genAdminJwt, genUserJwt, JWT_MAX_AGE } from "./helpers";
 import axios from "axios";
 
 const router = Router();
-const DGRAPH_URL = "https://dgraph.toccatech.com/graphql";
-const privateKey = fs.readFileSync("./rsa_1024_priv.pem", "utf-8");
+const DGRAPH_URL = process.env.DB_URL || "https://dgraph.toccatech.com/graphql";
+const FILE_SERVER_URL = process.env.FILE_SERVER_URL || "https://file-server.toccatech.com";
+const AUTH_COOKIE = process.env.AUTH_COOKIE || "X-Toccatech-Auth";
 
 const ADD_USER = `
   mutation AddUser($addUserInput: [AddUserInput!]!) {
@@ -30,7 +24,7 @@ const ADD_USER = `
   }
 `;
 
-const QUERY_USER = `
+const QUERY_USER_PROFILE = `
   query QueryUserProfile($filter: UserProfileFilter) {
     queryUserProfile(filter: $filter) {
       id
@@ -50,24 +44,24 @@ const signUpBodySchema: ValidationSchema = {
     type: "string",
     required: true,
     regExp: /^[a-z]+(\.[a-z]+)?@[a-z]+\.[a-z]+(\.[a-z]+)?$/,
-    errorMessage: "The field 'email' is required and must be valid!",
+    errorMessage: "Le champ 'email' est requis et doit être valide !",
   },
   password: {
     type: "string",
     required: true,
     minLength: 6,
-    errorMessage: "The field 'password' is required and must contain at least 6 characters!",
+    errorMessage: "Le champ 'password' est requis et doit contenir au moins 6 caractères !",
   },
   username: {
     type: "string",
     required: true,
-    errorMessage: "The field 'username' is required!",
+    errorMessage: "Le champ 'username' est requis !",
   },
   avatarURL: {
     type: "string",
-    regExp: /^(http|https):\/\/file-server\.toccatech.com\/files\/[^ "\/]+$/,
+    regExp: new RegExp("^" + FILE_SERVER_URL + '/files/[^ "/]+$'),
     errorMessage:
-      "The field 'avatarURL' is invalid! The URL must necessarily point to a file on the Toccatech File Server!",
+      "Le champ 'avatarURL' est invalide ! L'URL doit nécessairement renvoyer à un fichier stocké sur le File Server !",
   },
 };
 
@@ -76,22 +70,16 @@ router.post("/signup", validateBody(signUpBodySchema), async (req, res) => {
   const response = await axios.post(
     DGRAPH_URL,
     {
-      query: QUERY_USER,
-      variables: {
-        filter: { username: { eq: username } },
-      },
+      query: QUERY_USER_PROFILE,
+      variables: { filter: { username: { eq: username } } },
     },
-    {
-      headers: {
-        "X-Toccatech-Auth": generateAdminJwt(privateKey),
-      },
-    }
+    { headers: { [AUTH_COOKIE]: genAdminJwt() } }
   );
   const rawUsers = response.data;
   const users = rawUsers.data.queryUserProfile;
 
   if (users.length > 0) {
-    res.status(406).send({ error: "Sorry, this username is already taken by another user!" });
+    res.status(406).send({ error: "Désolé, ce nom d'utilisateur est déjà pris !" });
   } else {
     const hashedPassword = await hash(password, 10);
     const { data } = await axios.post(
@@ -102,32 +90,24 @@ router.post("/signup", validateBody(signUpBodySchema), async (req, res) => {
           addUserInput: [{ email, password: hashedPassword, userProfile: { username, avatarURL } }],
         },
       },
-      {
-        headers: {
-          "X-Toccatech-Auth": generateAdminJwt(privateKey),
-        },
-      }
+      { headers: { [AUTH_COOKIE]: genAdminJwt() } }
     );
-    if (data.errors) {
-      res.status(500).send(data.errors);
-    } else {
-      const user = data.data.addUser.user[0];
-      const userJwt = generateUserJwt(privateKey, user.id);
-      res
-        .cookie("X-Toccatech-Auth", "Bearer " + userJwt, { maxAge: 1000 * JWT_MAX_AGE })
-        .status(201)
-        .json({
-          message: `User successfully created! A JWT was generated too! Welcome, ${username}!`,
-          user: {
-            id: user.id,
-            userProfileId: user.userProfile.id,
-            email: user.email,
-            username: user.userProfile.username,
-            avatarURL: user.userProfile.avatarURL,
-            authToken: userJwt,
-          },
-        });
-    }
+    const user = data.data.addUser.user[0];
+    const userJwt = genUserJwt(user.id);
+    res
+      .cookie(AUTH_COOKIE, "Bearer " + userJwt, { maxAge: 1000 * JWT_MAX_AGE })
+      .status(201)
+      .send({
+        msg: `Votre compte a bien été créé ! Bienvenue, ${username}!`,
+        user: {
+          id: user.id,
+          userProfileId: user.userProfile.id,
+          email: user.email,
+          username: user.userProfile.username,
+          avatarURL: user.userProfile.avatarURL,
+          authToken: userJwt,
+        },
+      });
   }
 });
 
@@ -135,13 +115,13 @@ const signInBodySchema: ValidationSchema = {
   username: {
     type: "string",
     required: true,
-    errorMessage: "The field 'username' is required!",
+    errorMessage: "Le champ 'username' est requis !",
   },
   password: {
     type: "string",
     required: true,
     minLength: 6,
-    errorMessage: "The field 'password' is required and must contain at least 6 characters!",
+    errorMessage: "Le champ 'password' est requis et doit contenir au moins 6 caractères !",
   },
 };
 
@@ -149,36 +129,29 @@ router.post("/signin", validateBody(signInBodySchema), async (req, res) => {
   const { username, password } = req.body;
   const { data } = await axios.post(
     DGRAPH_URL,
-    {
-      query: QUERY_USER,
-      variables: {
-        filter: { username: { eq: username } },
-      },
-    },
-    {
-      headers: {
-        "X-Toccatech-Auth": generateAdminJwt(privateKey),
-      },
-    }
+    { query: QUERY_USER_PROFILE, variables: { filter: { username: { eq: username } } } },
+    { headers: { [AUTH_COOKIE]: genAdminJwt() } }
   );
   const userProfiles = data.data.queryUserProfile;
   if (userProfiles.length == 0) {
-    res.status(404).send({ error: "The provided username does not correspond to a known user!" });
+    res
+      .status(404)
+      .send({ error: "Le nom d'utilisateur envoyé n'est pas attaché à un compte existant !" });
   } else {
     const userAccount = userProfiles[0].userAccount;
     const userProfile = userProfiles[0];
     const validPassword = await compare(password, userAccount.password);
     if (!validPassword) {
-      res.status(403).send({ error: "The password is invalid!" });
+      res.status(403).send({ error: "Navré, mais votre mot de passe est incorrect !" });
     } else {
-      const userJwt = generateUserJwt(privateKey, userAccount.id);
+      const userJwt = genUserJwt(userAccount.id);
       res
-        .cookie("X-Toccatech-Auth", "Bearer " + userJwt, {
+        .cookie(AUTH_COOKIE, "Bearer " + userJwt, {
           maxAge: 1000 * JWT_MAX_AGE,
         })
         .status(200)
         .send({
-          msg: `Welcome, ${username}!`,
+          msg: `Content de vous revoir, ${username}!`,
           user: {
             id: userAccount.id,
             userProfileId: userProfile.id,
@@ -193,7 +166,7 @@ router.post("/signin", validateBody(signInBodySchema), async (req, res) => {
 });
 
 router.get("/signout", async (req, res) => {
-  res.clearCookie("X-Toccatech-Auth").status(200).send({ msg: "You are now signed out!" });
+  res.clearCookie(AUTH_COOKIE).status(200).send({ msg: "Vous êtes à présent déconnecté !" });
 });
 
 export default router;
