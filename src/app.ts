@@ -28,7 +28,7 @@ app.use(
 );
 app.use(helmet());
 
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   res.send({
     msg: "Welcome to Auth Server! This API enables applications to sign up, sign in and sign out users easily, with a secure asymmetric authentication system.",
   });
@@ -36,7 +36,7 @@ app.get("/", (req, res) => {
 
 app.use(authRoutes);
 
-app.use((req, res) => {
+app.use((_req, res) => {
   res.status(404).send({ error: "Cette route n'existe pas !" });
 });
 

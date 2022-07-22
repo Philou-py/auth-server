@@ -30,6 +30,16 @@ const QUERY_USER_PROFILE = `
       id
       username
       avatarURL
+      pieces {
+        id
+        title
+        scoreURL
+        composer {
+          id
+          name
+          avatarURL
+        }
+      }
       userAccount {
         id
         email
@@ -166,6 +176,7 @@ router.post("/signin", validateBody(signInBodySchema), async (req, res) => {
             email: userAccount.email,
             username: userProfile.username,
             avatarURL: userProfile.avatarURL,
+            pieces: userProfile.pieces,
             authToken: userJwt,
           },
         });
@@ -173,7 +184,7 @@ router.post("/signin", validateBody(signInBodySchema), async (req, res) => {
   }
 });
 
-router.get("/signout", async (req, res) => {
+router.get("/signout", async (_req, res) => {
   res.clearCookie(AUTH_COOKIE).status(200).send({ msg: "Vous êtes à présent déconnecté !" });
 });
 
