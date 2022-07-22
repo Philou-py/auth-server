@@ -37,7 +37,7 @@ const QUERY_USER_PROFILE = `
         composer {
           id
           name
-          avatarURL
+          photoURL
         }
       }
       userAccount {
