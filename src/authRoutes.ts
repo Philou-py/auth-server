@@ -184,8 +184,16 @@ router.post("/signin", validateBody(signInBodySchema), async (req, res) => {
   }
 });
 
-router.get("/signout", async (_req, res) => {
-  res.clearCookie(AUTH_COOKIE).status(200).send({ msg: "Vous êtes à présent déconnecté !" });
+router.get("/signout", async (req, res) => {
+  const host = req.get("Host");
+  const domainParts = host!.split(".");
+  const tld = domainParts.pop();
+  const sld = domainParts.pop();
+  const domain = [sld, tld].join(".");
+  res
+    .clearCookie(AUTH_COOKIE, { domain })
+    .status(200)
+    .send({ msg: "Vous êtes à présent déconnecté !" });
 });
 
 export default router;
